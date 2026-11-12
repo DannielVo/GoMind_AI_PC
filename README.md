@@ -25,8 +25,6 @@ The project separates Go rules and game state management, AI decision-making, an
 - **Architecture:** Object-Oriented Programming (OOP), modular Python packages
 - **Standard library:** `enum`, `dataclasses`, `math`, `random`, and other built-in modules
 
-> **Note:** Board images and other visual assets are loaded and rendered using Pygame. Pillow is not required by the supplied runtime source code.
-
 ## 5. Key Features
 
 ### Game Modes and Setup
