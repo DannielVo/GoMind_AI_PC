@@ -138,8 +138,8 @@ The application opens on the **Home Screen**. Select **Start** to configure a ga
 
 **GoMind AI Web** is an ongoing effort to bring the desktop Go game to the browser while reusing and improving the Python game engine and AI logic.
 
-- **Frontend:** Next.js, TypeScript, Tailwind CSS — [link fe]
-- **Backend:** FastAPI, Python — [link be]
+- **Frontend:** Next.js, TypeScript, Tailwind CSS — https://github.com/DannielVo/GoMind
+- **Backend:** FastAPI, Python — https://github.com/DannielVo/GoMind_AI_API
 - **Planned engine work:** Improve legal-move handling during AI search, heuristic evaluation, search performance, and automated tests.
 
 The web application is **in development**; the features documented above describe the current Python desktop implementation.
