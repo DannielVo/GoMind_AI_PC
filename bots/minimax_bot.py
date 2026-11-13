@@ -153,37 +153,59 @@ class HeuristicMinimaxBot:
                 if board.get(x, y) != 0:
                     continue
 
-                # ưu tiên ô gần quân mình
                 for nx, ny in board._neighbors(x, y):
                     if board.get(nx, ny) == player.value:
                         moves.append((x, y))
                         break
 
         if len(moves) < 12:
-            moves = [(x, y) for y in range(size) for x in range(size) if board.get(x, y) == 0]
+            moves = [
+                (x, y)
+                for y in range(size)
+                for x in range(size)
+                if board.get(x, y) == 0
+            ]
 
         def move_priority(move):
             x, y = move
             score = 0
 
-            # Ưu tiên ăn quân / gây atari
             for nx, ny in board._neighbors(x, y):
                 if board.get(nx, ny) == player.opposite.value:
                     libs = self._group_liberty(board, nx, ny)
+
                     if libs == 1:
                         score += 100
                     elif libs == 2:
                         score += 20
 
-            # Ưu tiên trung tâm nhẹ
             score += 4 - abs(4 - x) - abs(4 - y)
+
             return -score
 
         moves.sort(key=move_priority)
 
+        # Tìm nước phòng thủ
+        defensive_moves = self._get_defensive_moves(
+            board,
+            player,
+            previous_board,
+        )
+
+        # Đưa defensive moves lên trước
+        defensive_moves.sort(key=move_priority)
+
+        defensive_set = set(defensive_moves)
+
+        ordered_moves = defensive_moves + [
+            move for move in moves
+            if move not in defensive_set
+        ]
+
+        # Lọc nước hợp lệ và giới hạn 15 ứng viên
         legal_moves = []
 
-        for x, y in moves:
+        for x, y in ordered_moves:
             next_board, _ = board.simulate_move(
                 player,
                 x,
@@ -261,6 +283,104 @@ class HeuristicMinimaxBot:
     # ======================
     # GROUP / LIBERTY UTILS
     # ======================
+
+    def _find_atari_groups(
+        self,
+        board: Board,
+        player: Player,
+    ) -> List[set[Tuple[int, int]]]:
+        atari_groups = []
+        visited = set()
+
+        for y in range(board.size):
+            for x in range(board.size):
+                if board.get(x, y) != player.value:
+                    continue
+
+                if (x, y) in visited:
+                    continue
+
+                liberties, group = self._group_liberty_and_group(
+                    board, x, y
+                )
+
+                visited.update(group)
+
+                if liberties == 1:
+                    atari_groups.append(group)
+
+        return atari_groups
+
+    def _get_defensive_moves(
+        self,
+        board: Board,
+        player: Player,
+        previous_board: Board | None = None,
+    ) -> List[Tuple[int, int]]:
+        atari_groups = self._find_atari_groups(board, player)
+
+        if not atari_groups:
+            return []
+
+        defensive_moves = set()
+
+        for group in atari_groups:
+            candidate_moves = set()
+
+            # 1. Tìm khí cuối cùng của nhóm đang bị Atari
+            for gx, gy in group:
+                for nx, ny in board._neighbors(gx, gy):
+                    if board.get(nx, ny) == 0:
+                        candidate_moves.add((nx, ny))
+
+            # 2. Tìm nước bắt quân đối phương ở gần nhóm
+            for gx, gy in group:
+                for nx, ny in board._neighbors(gx, gy):
+                    if board.get(nx, ny) != player.opposite.value:
+                        continue
+
+                    enemy_liberties, enemy_group = (
+                        self._group_liberty_and_group(board, nx, ny)
+                    )
+
+                    if enemy_liberties != 1:
+                        continue
+
+                    for ex, ey in enemy_group:
+                        for lx, ly in board._neighbors(ex, ey):
+                            if board.get(lx, ly) == 0:
+                                candidate_moves.add((lx, ly))
+
+            # 3. Mô phỏng để kiểm tra nước đi có thực sự cứu nhóm
+            for x, y in candidate_moves:
+                next_board, _ = board.simulate_move(
+                    player, x, y, previous_board
+                )
+
+                if next_board is None:
+                    continue
+
+                # Nhóm gốc phải còn ít nhất một quân sống
+                surviving_stones = [
+                    (gx, gy)
+                    for gx, gy in group
+                    if next_board.get(gx, gy) == player.value
+                ]
+
+                if not surviving_stones:
+                    continue
+
+                sx, sy = surviving_stones[0]
+
+                liberties, _ = self._group_liberty_and_group(
+                    next_board, sx, sy
+                )
+
+                # Nhóm có ít nhất 2 khí sau nước đi
+                if liberties >= 2:
+                    defensive_moves.add((x, y))
+
+        return sorted(defensive_moves)
 
     def _group_liberty(self, board: Board, x: int, y: int) -> int:
         libs, _ = self._group_liberty_and_group(board, x, y)
