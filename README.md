@@ -8,7 +8,7 @@ The project separates Go rules and game state management, AI decision-making, an
 
 ## 2. Demo
 
-**Gameplay video:** [Add demo video link]
+**Gameplay video:** https://youtu.be/r2gwfIkA1Qw
 
 ## 3. Project Highlights
 
