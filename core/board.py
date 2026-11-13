@@ -122,5 +122,25 @@ class Board:
 
         return True, captured_total
 
+    def simulate_move(
+        self,
+        player: Player,
+        x: int,
+        y: int,
+        previous_board: "Board | None" = None,
+    ) -> tuple["Board | None", list[tuple[int, int]]]:
+
+        next_board = self.copy()
+
+        success, captured = next_board.place_stone(player, x, y)
+        if not success:
+            return None, []
+
+        if previous_board is not None:
+            if next_board.grid == previous_board.grid:
+                return None, []
+
+        return next_board, captured
+
     def is_full(self) -> bool:
         return all(v != 0 for row in self.grid for v in row)

@@ -12,39 +12,50 @@ class HeuristicMinimaxBot:
         self.depth = depth if depth is not None else 2
         self.resign_threshold = -30.0
 
-    def select_move(self, board: Board, legal_moves: List[Tuple[int, int]]) -> Tuple[int, int] | None:
+    def select_move(
+        self,
+        board: Board,
+        legal_moves: List[Tuple[int, int]],
+        previous_board: Board | None = None,
+    ) -> Tuple[int, int] | str | None:
+
         if not legal_moves:
             return None
 
         best_score = -math.inf
         best_moves: List[Tuple[int, int]] = []
 
-        for (x, y) in legal_moves:
-            child = board.copy()
-            success, _ = child.place_stone(self.color, x, y)
-            if not success:
+        for x, y in legal_moves:
+            child, _ = board.simulate_move(
+                self.color,
+                x,
+                y,
+                previous_board,
+            )
+
+            if child is None:
                 continue
 
             score = self._minimax(
-                child,
-                self.depth - 1,
+                board=child,
+                depth=max(0, self.depth - 1),
                 maximizing=False,
                 max_player=self.color,
                 alpha=-math.inf,
                 beta=math.inf,
+                previous_board=board,
             )
 
             if score > best_score + 1e-6:
                 best_score = score
                 best_moves = [(x, y)]
+
             elif abs(score - best_score) <= 1e-6:
                 best_moves.append((x, y))
 
-        # return random.choice(best_moves) if best_moves else None
         if not best_moves:
             return None
 
-        # Nếu thế cờ quá tệ thì resign
         if best_score < self.resign_threshold:
             return "RESIGN"
 
@@ -63,67 +74,77 @@ class HeuristicMinimaxBot:
         max_player: Player,
         alpha: float,
         beta: float,
+        previous_board: Board | None = None,
     ) -> float:
 
-        current_player = max_player if maximizing else max_player.opposite
-        legal_moves = self._generate_legal_moves(board, current_player)
-
-        if depth == 0 or not legal_moves:
+        if depth <= 0:
             return self._evaluate(board, max_player)
 
-        if maximizing:
-            value = -math.inf
-            for (x, y) in legal_moves:
-                child = board.copy()
-                success, _ = child.place_stone(current_player, x, y)
-                if not success:
-                    continue
+        current_player = (
+            max_player if maximizing
+            else max_player.opposite
+        )
 
-                value = max(
-                    value,
-                    self._minimax(
-                        child,
-                        depth - 1,
-                        False,
-                        max_player,
-                        alpha,
-                        beta,
-                    ),
-                )
+        legal_moves = self._generate_legal_moves(
+            board,
+            current_player,
+            previous_board,
+        )
+
+        if not legal_moves:
+            return self._evaluate(board, max_player)
+
+        value = -math.inf if maximizing else math.inf
+        explored = False
+
+        for x, y in legal_moves:
+            child, _ = board.simulate_move(
+                current_player,
+                x,
+                y,
+                previous_board,
+            )
+
+            if child is None:
+                continue
+
+            explored = True
+
+            score = self._minimax(
+                board=child,
+                depth=depth - 1,
+                maximizing=not maximizing,
+                max_player=max_player,
+                alpha=alpha,
+                beta=beta,
+                previous_board=board,
+            )
+
+            if maximizing:
+                value = max(value, score)
                 alpha = max(alpha, value)
-                if beta <= alpha:
-                    break
-            return value
-
-        else:
-            value = math.inf
-            for (x, y) in legal_moves:
-                child = board.copy()
-                success, _ = child.place_stone(current_player, x, y)
-                if not success:
-                    continue
-
-                value = min(
-                    value,
-                    self._minimax(
-                        child,
-                        depth - 1,
-                        True,
-                        max_player,
-                        alpha,
-                        beta,
-                    ),
-                )
+            else:
+                value = min(value, score)
                 beta = min(beta, value)
-                if beta <= alpha:
-                    break
-            return value
+
+            if beta <= alpha:
+                break
+
+        if not explored:
+            return self._evaluate(board, max_player)
+
+        return value
 
     # ======================
     # MOVE GENERATION
     # ======================
 
-    def _generate_legal_moves(self, board: Board, player: Player) -> List[Tuple[int, int]]:
+    def _generate_legal_moves(
+        self,
+        board: Board,
+        player: Player,
+        previous_board: Board | None = None,
+    ) -> List[Tuple[int, int]]:
         size = board.size
         moves = []
 
@@ -159,7 +180,26 @@ class HeuristicMinimaxBot:
             return -score
 
         moves.sort(key=move_priority)
-        return moves[:15]
+
+        legal_moves = []
+
+        for x, y in moves:
+            next_board, _ = board.simulate_move(
+                player,
+                x,
+                y,
+                previous_board,
+            )
+
+            if next_board is None:
+                continue
+
+            legal_moves.append((x, y))
+
+            if len(legal_moves) >= 15:
+                break
+
+        return legal_moves
 
     # ======================
     # HEURISTIC EVALUATION

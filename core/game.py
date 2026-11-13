@@ -102,32 +102,30 @@ class GoGame:
 
     # === Hợp lệ nước đi (bao gồm Ko) ===
 
+    def _get_previous_board(self) -> Optional[Board]:
+        if self.current_index < 1:
+            return None
+
+        return self.history[self.current_index - 1].board
+
     def get_legal_moves(self, player: Player) -> List[Tuple[int, int]]:
-        """Tính các nước đi hợp lệ cho `player` tại trạng thái hiện tại (bao gồm Ko)."""
         moves: List[Tuple[int, int]] = []
-        size = self.board.size
+        previous_board = self._get_previous_board()
 
-        # trạng thái "2 nước trước" để check Ko đơn (simple ko):
-        # cấm tạo lại hình cờ giống hệt vị trí chỉ một nước trước đó.
-        prev_board_grid = None
-        if self.current_index >= 1:
-            prev_board_grid = self.history[self.current_index - 1].board.grid
-
-        for y in range(size):
-            for x in range(size):
+        for y in range(self.board.size):
+            for x in range(self.board.size):
                 if self.board.get(x, y) != 0:
                     continue
 
-                temp = self.board.copy()
-                success, _ = temp.place_stone(player, x, y)
-                if not success:
-                    continue
+                next_board, _ = self.board.simulate_move(
+                    player,
+                    x,
+                    y,
+                    previous_board,
+                )
 
-                # Ko: cấm để bàn cờ sau khi đặt quân trùng với bàn ở "một nước trước đó"
-                if prev_board_grid is not None and temp.grid == prev_board_grid:
-                    continue
-
-                moves.append((x, y))
+                if next_board is not None:
+                    moves.append((x, y))
 
         return moves
 
@@ -138,17 +136,17 @@ class GoGame:
             return False
 
         # Tạo bản sao bàn cờ và thử đặt quân (check biên, trùng, tự sát, bắt quân)
-        temp_board = self.board.copy()
-        success, captured = temp_board.place_stone(player, x, y)
-        if not success:
-            return False
+        previous_board = self._get_previous_board()
 
-        # Ko: cấm lặp lại hình cờ cách 1 nước
-        if self.current_index >= 1:
-            prev_board = self.history[self.current_index - 1].board
-            if temp_board.grid == prev_board.grid:
-                # vi phạm ko, không chấp nhận nước đi
-                return False
+        temp_board, captured = self.board.simulate_move(
+            player,
+            x,
+            y,
+            previous_board,
+        )
+
+        if temp_board is None:
+            return False
 
         # Cập nhật số quân bắt được
         new_captures = dict(self.captures)
@@ -202,7 +200,11 @@ class GoGame:
             self.pass_turn()
             return
 
-        move = self.bot.select_move(self.board.copy(), legal)
+        move = self.bot.select_move(
+            self.board.copy(),
+            legal,
+            previous_board=self._get_previous_board(),
+        )
 
         if move == "RESIGN":
             self.resign(loser=self.current_player)
